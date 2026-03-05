@@ -1,9 +1,32 @@
+import os
+import smtplib
+from email.mime.text import MIMEText
 import datetime
 
 print("JP Sourcing System Running")
 
-# 오늘 날짜
 today = datetime.date.today()
 
-# 예시 출력 (실제 수집 로직은 2단계에서 추가 가능)
-print(f"Today's date: {today}")
+EMAIL = os.getenv("EMAIL_ACCOUNT")
+
+subject = "JP Auto Sourcing Test Email"
+body = f"""
+JP Sourcing System Test
+
+Today's date: {today}
+
+If you received this email, the automation system is working.
+"""
+
+msg = MIMEText(body)
+msg["Subject"] = subject
+msg["From"] = EMAIL
+msg["To"] = EMAIL
+
+server = smtplib.SMTP("smtp.gmail.com", 587)
+server.starttls()
+server.login(EMAIL, os.getenv("EMAIL_PASSWORD"))
+server.sendmail(EMAIL, EMAIL, msg.as_string())
+server.quit()
+
+print("Email sent successfully")
