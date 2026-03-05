@@ -24,9 +24,11 @@ today = datetime.now().strftime("%Y-%m-%d")
 # 3️⃣ Amazon 카테고리
 # ---------------------------
 categories = {
-    "Beauty": "https://www.amazon.co.jp/gp/bestsellers/beauty",
-    "Toys": "https://www.amazon.co.jp/gp/bestsellers/toys",
-    "Home": "https://www.amazon.co.jp/gp/bestsellers/home",
+    "ドラッグストア": "https://www.amazon.co.jp/gp/bestsellers/hpc",
+    "ビューティー": "https://www.amazon.co.jp/gp/bestsellers/beauty",
+    "文房具・オフィス用品": "https://www.amazon.co.jp/gp/bestsellers/office-products",
+    "ホーム＆キッチン": "https://www.amazon.co.jp/gp/bestsellers/home",
+    "食品": "https://www.amazon.co.jp/gp/bestsellers/food-beverage",
 }
 
 # ---------------------------
