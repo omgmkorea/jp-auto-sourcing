@@ -1,13 +1,23 @@
-import datetime
+import base64
 import os
+from email.mime.text import MIMEText
+from google.oauth2 import service_account
+from googleapiclient.discovery import build
 
-print("JP Sourcing System Running")
+EMAIL_ACCOUNT = os.getenv("EMAIL_ACCOUNT")
 
-today = datetime.date.today()
+message_text = "JP Auto Sourcing Test Email"
 
-email = os.getenv("EMAIL_ACCOUNT")
+message = MIMEText(message_text)
 
-print(f"Today's date: {today}")
-print(f"Email will be sent to: {email}")
+message["to"] = EMAIL_ACCOUNT
+message["from"] = EMAIL_ACCOUNT
+message["subject"] = "JP Sourcing Test"
 
-print("System ready for Gmail API send")
+raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+service = build("gmail", "v1")
+
+body = {"raw": raw}
+
+print("Email send simulation complete")
