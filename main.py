@@ -101,7 +101,7 @@ msg["To"] = TO_ADDRESS
 server = smtplib.SMTP("smtp.gmail.com", 587)
 server.starttls()
 server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-server.send_message(msg)
+server.sendmail(EMAIL_ADDRESS, TO_ADDRESS, msg.as_string())
 server.quit()
 
 print(f"주간 소싱 완료: {len(all_products)}개 상품 이메일 발송")
