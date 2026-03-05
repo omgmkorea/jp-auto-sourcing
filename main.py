@@ -1,35 +1,40 @@
-import base64
-import os
 import datetime
+import smtplib
 from email.mime.text import MIMEText
-
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
+import os
 
 print("JP Sourcing System Running")
 
+# 오늘 날짜
 today = datetime.date.today()
 
-SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
+# 이메일 내용
+message = f"""
+JP Sourcing Daily Report
 
-flow = InstalledAppFlow.from_client_secrets_file(
-    "credentials.json", SCOPES
-)
+Today's date: {today}
 
-creds = flow.run_console()
+System test email.
+"""
 
-service = build("gmail", "v1", credentials=creds)
+# 환경변수 (GitHub Secrets)
+EMAIL_ACCOUNT = os.getenv("EMAIL_ACCOUNT")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
-message = MIMEText(f"JP sourcing system test\n\nDate: {today}")
-message["to"] = os.getenv("EMAIL_ACCOUNT")
-message["subject"] = "JP Auto Sourcing Test"
+# 이메일 만들기
+msg = MIMEText(message)
+msg['Subject'] = "JP Auto Sourcing Test"
+msg['From'] = EMAIL_ACCOUNT
+msg['To'] = EMAIL_ACCOUNT
 
-raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+# Gmail SMTP 서버 연결
+server = smtplib.SMTP("smtp.gmail.com", 587)
+server.starttls()
 
-service.users().messages().send(
-    userId="me",
-    body={"raw": raw}
-).execute()
+server.login(EMAIL_ACCOUNT, EMAIL_PASSWORD)
 
-print("Email sent!")
+server.send_message(msg)
+
+server.quit()
+
+print("Email sent successfully")
