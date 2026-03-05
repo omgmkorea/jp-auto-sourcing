@@ -32,3 +32,6 @@ jobs:
       # 4️⃣ main.py 실행 (주간 소싱 + 이메일 발송)
       - name: Run weekly sourcing
         run: python main.py
+        env:
+          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
