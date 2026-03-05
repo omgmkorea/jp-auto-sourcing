@@ -85,6 +85,8 @@ with open(csv_filename, "w", newline="", encoding="utf-8-sig") as f:
         writer.writerow(p)
 
 # ---------------------------
+from email.header import Header
+
 # 6️⃣ 이메일 발송
 # ---------------------------
 subject = f"주간 Amazon 추천 상품 - {today}"
@@ -93,8 +95,8 @@ for p in all_products:
     body += f'<li>[{p["category"]}] <a href="{p["link"]}">{p["title"]}</a> - {p["price"]}円, 리뷰: {p["reviews"]}</li>'
 body += "</ul>"
 
-msg = MIMEText(body, "html")
-msg["Subject"] = subject
+msg = MIMEText(body, "html", "utf-8")
+msg["Subject"] = Header(subject, "utf-8")
 msg["From"] = EMAIL_ADDRESS
 msg["To"] = TO_ADDRESS
 
