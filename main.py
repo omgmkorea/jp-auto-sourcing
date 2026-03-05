@@ -13,7 +13,7 @@ from email.mime.text import MIMEText
 # ---------------------------
 EMAIL_ADDRESS = os.environ.get("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
-TO_ADDRESS = "받는사람@example.com"  # 수신자 이메일
+TO_ADDRESS = EMAIL_ADDRESS  # 수신자 이메일
 
 # ---------------------------
 # 2️⃣ Amazon JP 카테고리 및 URL 설정
