@@ -26,3 +26,4 @@ jobs:
         run: python main.py
         env:
           EMAIL_ACCOUNT: ${{ secrets.EMAIL_ACCOUNT }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
