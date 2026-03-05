@@ -1,32 +1,35 @@
+import base64
 import os
-import smtplib
-from email.mime.text import MIMEText
 import datetime
+from email.mime.text import MIMEText
+
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
 
 print("JP Sourcing System Running")
 
 today = datetime.date.today()
 
-EMAIL = os.getenv("EMAIL_ACCOUNT")
+SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
 
-subject = "JP Auto Sourcing Test Email"
-body = f"""
-JP Sourcing System Test
+flow = InstalledAppFlow.from_client_secrets_file(
+    "credentials.json", SCOPES
+)
 
-Today's date: {today}
+creds = flow.run_console()
 
-If you received this email, the automation system is working.
-"""
+service = build("gmail", "v1", credentials=creds)
 
-msg = MIMEText(body)
-msg["Subject"] = subject
-msg["From"] = EMAIL
-msg["To"] = EMAIL
+message = MIMEText(f"JP sourcing system test\n\nDate: {today}")
+message["to"] = os.getenv("EMAIL_ACCOUNT")
+message["subject"] = "JP Auto Sourcing Test"
 
-server = smtplib.SMTP("smtp.gmail.com", 587)
-server.starttls()
-server.login(EMAIL, os.getenv("EMAIL_PASSWORD"))
-server.sendmail(EMAIL, EMAIL, msg.as_string())
-server.quit()
+raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
 
-print("Email sent successfully")
+service.users().messages().send(
+    userId="me",
+    body={"raw": raw}
+).execute()
+
+print("Email sent!")
