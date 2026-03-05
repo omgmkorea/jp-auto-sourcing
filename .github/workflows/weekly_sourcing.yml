@@ -1,0 +1,34 @@
+name: Weekly Amazon Sourcing
+
+# ---------------------------
+# 1. 실행 주기 설정
+# ---------------------------
+# 매주 월요일 오전 7시 (한국 시간 기준)
+on:
+  schedule:
+    - cron: '22 22 * * 0'  # UTC 기준: 월요일 7시 KST → 일요일 22시 UTC
+  workflow_dispatch:  # 수동 실행 가능 (테스트용)
+
+jobs:
+  run-weekly-sourcing:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ 레포지토리 코드 체크아웃
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2️⃣ Python 설치
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      # 3️⃣ 의존성 설치
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4 lxml
+
+      # 4️⃣ main.py 실행 (주간 소싱 + 이메일 발송)
+      - name: Run weekly sourcing
+        run: python main.py
