@@ -1,158 +1,107 @@
+# main.py
+
+import os
 import requests
 from bs4 import BeautifulSoup
 import csv
-from datetime import datetime, timedelta
+import datetime
 import smtplib
 from email.mime.text import MIMEText
-import os
 
 # ---------------------------
-# 날짜 설정
+# 1️⃣ 환경 변수로 이메일 정보 가져오기
 # ---------------------------
-today = datetime.now()
-today_str = today.strftime("%Y-%m-%d")
-one_week_ago = today - timedelta(days=7)
-one_week_ago_str = one_week_ago.strftime("%Y-%m-%d")
+EMAIL_ADDRESS = os.environ.get("EMAIL_ADDRESS")
+EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
+TO_ADDRESS = "받는사람@example.com"  # 수신자 이메일
 
 # ---------------------------
-# Amazon JP 카테고리
+# 2️⃣ Amazon JP 카테고리 및 URL 설정
 # ---------------------------
-categories = {
-    "영양제": "ドラッグストア",
-    "화장품": "ビューティー",
-    "문구류": "文房具・オフィス用品",
-    "생활용품": "ホーム＆キッチン",
-    "식품": "食品"
+CATEGORIES = {
+    "ドラッグストア": "https://www.amazon.co.jp/s?i=drugstore",
+    "ビューティー": "https://www.amazon.co.jp/s?i=beauty",
+    "文房具・オフィス用品": "https://www.amazon.co.jp/s?i=office",
+    "ホーム＆キッチン": "https://www.amazon.co.jp/s?i=home",
+    "食品": "https://www.amazon.co.jp/s?i=gourmet"
 }
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-    "Accept-Language": "ja-JP,ja;q=0.9"
-}
-
-# 데이터 저장용 CSV
-DATA_FILE = "amazon_weekly.csv"
+# 상품 조건
+MIN_PRICE = 800
+MAX_PRICE = 20000
 
 # ---------------------------
-# 1. 이번주 상품 수집
+# 3️⃣ 상품 수집 함수
 # ---------------------------
-weekly_products = []
-
-for cat_name, cat_jp in categories.items():
-    URL = f"https://www.amazon.co.jp/s?k={cat_jp}"
-    response = requests.get(URL, headers=HEADERS)
+def get_products(category_name, url):
+    products = []
+    response = requests.get(url)
     soup = BeautifulSoup(response.text, "lxml")
-
-    items = soup.select("div.s-main-slot div.s-result-item")
     
-    for item in items[:50]:  # 상위 50개 정도 검사
-        # 제목
-        title_tag = item.select_one("span.a-text-normal")
-        if not title_tag:
+    # 여기서 상품 리스트 파싱
+    for item in soup.select("div.s-result-item"):
+        title_tag = item.select_one("h2 a span")
+        link_tag = item.select_one("h2 a")
+        price_tag = item.select_one(".a-price .a-offscreen")
+        reviews_tag = item.select_one(".a-size-small .a-link-normal")
+        
+        if not (title_tag and link_tag and price_tag and reviews_tag):
             continue
-        title = title_tag.get_text().strip()
-
-        # 링크
-        link_tag = item.select_one("a.a-link-normal")
-        if link_tag and 'href' in link_tag.attrs:
-            link = "https://www.amazon.co.jp" + link_tag['href']
-        else:
-            link = ""
-
-        # 가격
-        price_tag = item.select_one("span.a-price > span.a-offscreen")
-        if not price_tag:
-            continue
-        price_text = price_tag.get_text().replace("￥", "").replace(",", "").strip()
-        try:
-            price = int(price_text)
-        except:
-            continue
-        if price < 800 or price > 20000:
-            continue  # 가격 필터
-
-        # 랭킹 100위 밖 확인
-        # 참고: 일반 페이지 크롤링만으로 정확한 랭킹은 어렵지만, 상위 N개만 제외 처리 가능
-        # 여기서는 상위 10개 정도 제외 (임시)
-        rank_tag = item.get('data-index')
-        if rank_tag and int(rank_tag) <= 10:
-            continue
-
-        # 리뷰 수
-        review_tag = item.select_one("span.a-size-base")
-        if review_tag:
-            try:
-                reviews = int(review_tag.get_text().replace(",", ""))
-            except:
-                reviews = 0
-        else:
-            reviews = 0
-
-        weekly_products.append({
-            "date": today_str,
-            "category": cat_name,
-            "title": title,
-            "link": link,
-            "price": price,
-            "reviews": reviews
-        })
+        
+        title = title_tag.get_text(strip=True)
+        link = "https://www.amazon.co.jp" + link_tag.get("href")
+        price_text = price_tag.get_text(strip=True).replace("￥","").replace(",","")
+        price = int(price_text)
+        reviews = int(reviews_tag.get_text(strip=True).replace(",",""))
+        
+        if MIN_PRICE <= price <= MAX_PRICE:
+            products.append({
+                "title": title,
+                "link": link,
+                "price": price,
+                "reviews": reviews,
+                "category": category_name
+            })
+    
+    return products
 
 # ---------------------------
-# 2. 과거 데이터와 비교 (리뷰 증가율 계산)
+# 4️⃣ 전체 카테고리 수집
 # ---------------------------
-# CSV 파일 읽기
-past_products = {}
-if os.path.exists(DATA_FILE):
-    with open(DATA_FILE, newline='', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            key = row['link']
-            past_products[key] = int(row['reviews'])
-
-# 리뷰 증가량 계산
-recommended = []
-for prod in weekly_products:
-    prev_reviews = past_products.get(prod['link'], 0)
-    if prod['reviews'] - prev_reviews >= 5:  # 일주일 동안 리뷰 5개 이상 증가
-        recommended.append(prod)
+all_products = []
+for cat_name, url in CATEGORIES.items():
+    all_products += get_products(cat_name, url)
 
 # ---------------------------
-# 3. CSV 업데이트
+# 5️⃣ CSV 저장
 # ---------------------------
-with open(DATA_FILE, 'w', newline='', encoding='utf-8') as f:
-    fieldnames = ["date", "category", "title", "link", "price", "reviews"]
-    writer = csv.DictWriter(f, fieldnames=fieldnames)
+today = datetime.date.today()
+csv_filename = f"amazon_weekly_{today}.csv"
+
+with open(csv_filename, "w", newline="", encoding="utf-8-sig") as f:
+    writer = csv.DictWriter(f, fieldnames=["category","title","link","price","reviews"])
     writer.writeheader()
-    for prod in weekly_products:
-        writer.writerow(prod)
+    for p in all_products:
+        writer.writerow(p)
 
 # ---------------------------
-# 4. 이메일 내용
+# 6️⃣ 이메일 발송
 # ---------------------------
-email_body = f"{today_str} Amazon Japan 주간 추천 상품:\n\n"
-for prod in recommended:
-    email_body += f"[{prod['category']}] {prod['title']} - {prod['price']}円\n{prod['link']}\n\n"
+subject = f"주간 Amazon 추천 상품 - {today}"
+body = "<h2>이번 주 추천 상품</h2><ul>"
+for p in all_products:
+    body += f'<li>[{p["category"]}] <a href="{p["link"]}">{p["title"]}</a> - {p["price"]}円, 리뷰: {p["reviews"]}</li>'
+body += "</ul>"
 
-if not recommended:
-    email_body += "이번 주 추천 상품이 없습니다."
-
-# ---------------------------
-# 5. 이메일 발송
-# ---------------------------
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-EMAIL_ADDRESS = "your_email@gmail.com"
-EMAIL_PASSWORD = "your_app_password"
-TO_ADDRESS = "받는사람@gmail.com"
-
-msg = MIMEText(email_body)
-msg["Subject"] = f"Amazon Japan 주간 추천 상품 ({today_str})"
+msg = MIMEText(body, "html")
+msg["Subject"] = subject
 msg["From"] = EMAIL_ADDRESS
 msg["To"] = TO_ADDRESS
 
-with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-    server.starttls()
-    server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-    server.send_message(msg)
+server = smtplib.SMTP("smtp.gmail.com", 587)
+server.starttls()
+server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+server.send_message(msg)
+server.quit()
 
-print("주간 추천 이메일 발송 완료! ✅")
+print(f"주간 소싱 완료: {len(all_products)}개 상품 이메일 발송")
