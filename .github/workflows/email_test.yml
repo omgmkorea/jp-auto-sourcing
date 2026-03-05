@@ -1,0 +1,26 @@
+name: email_test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test_email:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+
+      - name: Install packages
+        run: |
+          pip install google-api-python-client google-auth google-auth-httplib2 google-auth-oauthlib
+
+      - name: Create credentials.json
+        run: echo '${{ secrets.GOOGLE_CREDENTIALS }}' > credentials.json
+
+      - name: Run script
+        run: python main.py
