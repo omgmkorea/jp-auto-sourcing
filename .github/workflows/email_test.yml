@@ -18,7 +18,7 @@ jobs:
       - name: Install packages
         run: |
           pip install google-api-python-client google-auth google-auth-httplib2 google-auth-oauthlib
-
+          pip install requests beautifulsoup4
       - name: Create credentials.json
         run: echo '${{ secrets.GOOGLE_CREDENTIALS }}' > credentials.json
 
