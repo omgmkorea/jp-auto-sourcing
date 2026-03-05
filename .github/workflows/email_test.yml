@@ -24,3 +24,5 @@ jobs:
 
       - name: Run script
         run: python main.py
+        env:
+          EMAIL_ACCOUNT: ${{ secrets.EMAIL_ACCOUNT }}
