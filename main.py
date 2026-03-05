@@ -106,4 +106,5 @@ server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
 server.sendmail(EMAIL_ADDRESS, [TO_ADDRESS], msg.as_string())
 server.quit()
 
+print("수집된 상품:", all_products)
 print(f"주간 소싱 완료: {len(all_products)}개 상품 이메일 발송")
