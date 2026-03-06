@@ -5,11 +5,13 @@ from email.mime.text import MIMEText
 from email.header import Header
 from datetime import datetime
 import os
+import json
 import re
 
 # ---------------------------
-# 1️⃣ 환경변수
+# 1️⃣ 환경 변수
 # ---------------------------
+
 EMAIL_ADDRESS = os.environ.get("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
 
@@ -19,56 +21,44 @@ NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET")
 TO_ADDRESS = EMAIL_ADDRESS
 
 # ---------------------------
-# 2️⃣ 오늘 날짜
+# 2️⃣ 가격 저장 파일
 # ---------------------------
-today = datetime.now().strftime("%Y-%m-%d")
+
+PRICE_FILE = "price_history.json"
+
+if os.path.exists(PRICE_FILE):
+    with open(PRICE_FILE, "r") as f:
+        price_history = json.load(f)
+else:
+    price_history = {}
 
 # ---------------------------
 # 3️⃣ Amazon 카테고리
 # ---------------------------
+
 categories = {
-    "ドラッグストア": "https://www.amazon.co.jp/gp/bestsellers/hpc/ref=zg_bs_pg_3?pg=3",
-    "ビューティー": "https://www.amazon.co.jp/gp/bestsellers/beauty/ref=zg_bs_pg_3?pg=3",
-    "文房具・オフィス用品": "https://www.amazon.co.jp/gp/bestsellers/office-products/ref=zg_bs_pg_3?pg=3",
-    "ホーム＆キッチン": "https://www.amazon.co.jp/gp/bestsellers/home/ref=zg_bs_pg_3?pg=3",
-    "食品": "https://www.amazon.co.jp/gp/bestsellers/food-beverage/ref=zg_bs_pg_3?pg=3",
+    "ドラッグストア": "https://www.amazon.co.jp/gp/bestsellers/hpc",
+    "ビューティー": "https://www.amazon.co.jp/gp/bestsellers/beauty",
+    "文房具・オフィス用品": "https://www.amazon.co.jp/gp/bestsellers/office-products",
+    "ホーム＆キッチン": "https://www.amazon.co.jp/gp/bestsellers/home",
+    "食品": "https://www.amazon.co.jp/gp/bestsellers/food-beverage"
 }
 
 # ---------------------------
-# 4️⃣ 반입금지 필터
+# 4️⃣ 금지 상품 필터
 # ---------------------------
+
 banned_keywords = [
-    "コンタクト", "contact lens",
-    "laser", "weapon",
+    "コンタクト",
+    "コンタクトレンズ",
+    "contact lens",
+    "contacts"
 ]
 
 # ---------------------------
-# 5️⃣ Google 번역
+# 5️⃣ 네이버 검색
 # ---------------------------
-def translate_to_korean(text):
 
-    url = "https://translate.googleapis.com/translate_a/single"
-
-    params = {
-        "client": "gtx",
-        "sl": "ja",
-        "tl": "ko",
-        "dt": "t",
-        "q": text
-    }
-
-    try:
-        res = requests.get(url, params=params)
-        result = res.json()
-        return result[0][0][0]
-
-    except:
-        return text
-
-
-# ---------------------------
-# 6️⃣ 네이버 쇼핑 검색
-# ---------------------------
 def check_naver_products(keyword):
 
     url = "https://openapi.naver.com/v1/search/shop.json"
@@ -84,25 +74,62 @@ def check_naver_products(keyword):
     }
 
     try:
-
         res = requests.get(url, headers=headers, params=params)
         data = res.json()
+        return data.get("total", 0)
+    except:
+        return 999
 
-        total = data.get("total", 0)
 
-        return total
+# ---------------------------
+# 6️⃣ Google 번역
+# ---------------------------
+
+def translate_ko(text):
+
+    try:
+
+        url = "https://translate.googleapis.com/translate_a/single"
+
+        params = {
+            "client": "gtx",
+            "sl": "ja",
+            "tl": "ko",
+            "dt": "t",
+            "q": text
+        }
+
+        res = requests.get(url, params=params)
+
+        return res.json()[0][0][0]
 
     except:
-
-        return 0
+        return text
 
 
 # ---------------------------
-# 7️⃣ 상품 수집
+# 7️⃣ 스마트스토어 상품명 생성
 # ---------------------------
+
+def make_smartstore_title(title):
+
+    title = re.sub(r"\[.*?\]", "", title)
+
+    words = title.split()
+
+    if len(words) >= 3:
+        return " ".join(words[:3])
+
+    return title
+
+
+# ---------------------------
+# 8️⃣ Amazon 수집
+# ---------------------------
+
 headers = {
     "User-Agent": "Mozilla/5.0",
-    "Accept-Language": "ja-JP,ja;q=0.9,en-US;q=0.8"
+    "Accept-Language": "ja-JP"
 }
 
 all_products = []
@@ -111,82 +138,105 @@ for category, url in categories.items():
 
     try:
 
-        response = requests.get(url, headers=headers, timeout=20)
-        soup = BeautifulSoup(response.text, "html.parser")
+        res = requests.get(url, headers=headers, timeout=20)
+
+        soup = BeautifulSoup(res.text, "html.parser")
 
         items = soup.select(".zg-grid-general-faceout")
 
         for item in items:
 
+            rank_tag = item.select_one(".zg-bdg-text")
+
+            if not rank_tag:
+                continue
+
+            rank = int(rank_tag.text.replace("#", ""))
+
+            if rank <= 100:
+                continue
+
             title_tag = item.select_one("._cDEzb_p13n-sc-css-line-clamp-3_g3dy1")
+
             price_tag = item.select_one(".p13n-sc-price")
+
             link_tag = item.select_one("a")
 
-            if not title_tag or not link_tag or not price_tag:
+            if not title_tag or not link_tag:
                 continue
 
             title = title_tag.text.strip()
-            price_text = price_tag.text.strip()
 
-            # 가격 숫자 추출
-            price_number = int(re.sub(r"[^\d]", "", price_text))
+            for banned in banned_keywords:
+                if banned.lower() in title.lower():
+                    continue
 
-            # 가격 필터
-            if price_number < 800 or price_number > 20000:
-                continue
+            price_text = price_tag.text if price_tag else ""
 
-            # 반입금지 필터
-            banned = False
-            for b in banned_keywords:
-                if b.lower() in title.lower():
-                    banned = True
+            price = int(re.sub(r"[^\d]", "", price_text)) if price_text else 0
 
-            if banned:
+            if price < 800 or price > 20000:
                 continue
 
             link = "https://www.amazon.co.jp" + link_tag.get("href")
 
-            # 한국어 번역
-            korean_title = translate_to_korean(title)
+            previous_price = price_history.get(link)
 
-            # 네이버 검색
-            naver_count = check_naver_products(korean_title)
+            if previous_price is not None and previous_price == price:
+                continue
 
-            # 네이버에 존재하면 제외
-            if naver_count != 0:
+            price_history[link] = price
+
+            title_ko = translate_ko(title)
+
+            search_keyword = make_smartstore_title(title_ko)
+
+            naver_total = check_naver_products(search_keyword)
+
+            if naver_total != 0:
                 continue
 
             all_products.append({
                 "category": category,
-                "title": korean_title,
-                "price": price_text,
-                "link": link
+                "title": title_ko,
+                "price": price,
+                "link": link,
+                "keyword": search_keyword
             })
 
     except Exception as e:
 
         print("error:", e)
 
+# ---------------------------
+# 9️⃣ 가격 저장
+# ---------------------------
 
-print("수집 상품 수:", len(all_products))
-
+with open(PRICE_FILE, "w") as f:
+    json.dump(price_history, f)
 
 # ---------------------------
-# 8️⃣ 이메일 내용
+# 🔟 이메일 생성
 # ---------------------------
-body = "<h2>이번 주 Amazon 미판매 추천상품</h2><ul>"
+
+today = datetime.now().strftime("%Y-%m-%d")
+
+body = "<h2>이번 주 추천 상품</h2><ul>"
 
 for p in all_products:
 
-    body += f'<li>[{p["category"]}] <a href="{p["link"]}">{p["title"]}</a> - {p["price"]}</li>'
+    body += f'''
+<li>
+[{p["category"]}]  
+<a href="{p["link"]}">{p["title"]}</a><br>
+가격: {p["price"]}円<br>
+스마트스토어 상품명 추천: {p["keyword"]}
+</li><br>
+'''
 
 body += "</ul>"
 
-
-# ---------------------------
-# 9️⃣ 이메일 발송
-# ---------------------------
-subject = f"Amazon Japan 소싱 리포트 - {today}"
+subject = f"Amazon Japan 자동소싱 추천 - {today}"
 
 msg = MIMEText(body, "html", "utf-8")
 
@@ -194,14 +244,14 @@ msg["Subject"] = Header(subject, "utf-8")
 msg["From"] = EMAIL_ADDRESS
 msg["To"] = TO_ADDRESS
 
+# ---------------------------
+# 1️⃣1️⃣ 이메일 발송
+# ---------------------------
 
 server = smtplib.SMTP("smtp.gmail.com", 587)
 server.starttls()
 
-server.login(
-    EMAIL_ADDRESS,
-    EMAIL_PASSWORD
-)
+server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
 
 server.sendmail(
     EMAIL_ADDRESS,
@@ -211,4 +261,5 @@ server.sendmail(
 
 server.quit()
 
+print("추천 상품 수:", len(all_products))
 print("이메일 발송 완료")
