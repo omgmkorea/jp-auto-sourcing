@@ -2,264 +2,271 @@ import requests
 from bs4 import BeautifulSoup
 import smtplib
 from email.mime.text import MIMEText
-from email.header import Header
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 from datetime import datetime
 import os
-import json
-import re
-
-# ---------------------------
-# 1️⃣ 환경 변수
-# ---------------------------
+import csv
+from deep_translator import GoogleTranslator
 
 EMAIL_ADDRESS = os.environ.get("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
 
-NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID")
-NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET")
+today = datetime.now().strftime("%Y-%m-%d")
 
-TO_ADDRESS = EMAIL_ADDRESS
-
-# ---------------------------
-# 2️⃣ 가격 저장 파일
-# ---------------------------
-
-PRICE_FILE = "price_history.json"
-
-if os.path.exists(PRICE_FILE):
-    with open(PRICE_FILE, "r") as f:
-        price_history = json.load(f)
-else:
-    price_history = {}
-
-# ---------------------------
-# 3️⃣ Amazon 카테고리
-# ---------------------------
+history_file = "products_history.csv"
+result_file = "recommended_products.csv"
 
 categories = {
-    "ドラッグストア": "https://www.amazon.co.jp/gp/bestsellers/hpc",
     "ビューティー": "https://www.amazon.co.jp/gp/bestsellers/beauty",
-    "文房具・オフィス用品": "https://www.amazon.co.jp/gp/bestsellers/office-products",
+    "ドラッグストア": "https://www.amazon.co.jp/gp/bestsellers/hpc",
     "ホーム＆キッチン": "https://www.amazon.co.jp/gp/bestsellers/home",
+    "文房具": "https://www.amazon.co.jp/gp/bestsellers/office-products",
     "食品": "https://www.amazon.co.jp/gp/bestsellers/food-beverage"
 }
 
-# ---------------------------
-# 4️⃣ 금지 상품 필터
-# ---------------------------
+headers = {
+    "User-Agent": "Mozilla/5.0",
+    "Accept-Language": "ja-JP,ja;q=0.9,en-US;q=0.8"
+}
 
-banned_keywords = [
+ban_keywords = [
     "コンタクト",
-    "コンタクトレンズ",
     "contact lens",
-    "contacts"
+    "リチウム",
+    "battery",
+    "knife",
+    "ナイフ"
 ]
 
-# ---------------------------
-# 5️⃣ 네이버 검색
-# ---------------------------
+products = []
 
-def check_naver_products(keyword):
-
-    url = "https://openapi.naver.com/v1/search/shop.json"
-
-    headers = {
-        "X-Naver-Client-Id": NAVER_CLIENT_ID,
-        "X-Naver-Client-Secret": NAVER_CLIENT_SECRET
-    }
-
-    params = {
-        "query": keyword,
-        "display": 10
-    }
+def translate_to_korean(text):
 
     try:
-        res = requests.get(url, headers=headers, params=params)
-        data = res.json()
-        return data.get("total", 0)
-    except:
-        return 999
-
-
-# ---------------------------
-# 6️⃣ Google 번역
-# ---------------------------
-
-def translate_ko(text):
-
-    try:
-
-        url = "https://translate.googleapis.com/translate_a/single"
-
-        params = {
-            "client": "gtx",
-            "sl": "ja",
-            "tl": "ko",
-            "dt": "t",
-            "q": text
-        }
-
-        res = requests.get(url, params=params)
-
-        return res.json()[0][0][0]
-
+        result = GoogleTranslator(source='auto', target='ko').translate(text)
+        return result
     except:
         return text
 
+def make_smartstore_title(title_ko):
 
-# ---------------------------
-# 7️⃣ 스마트스토어 상품명 생성
-# ---------------------------
+    words = title_ko.split()
 
-def make_smartstore_title(title):
+    short = " ".join(words[:6])
 
-    title = re.sub(r"\[.*?\]", "", title)
+    smart_title = short + " 일본 직구 정품"
 
-    words = title.split()
+    return smart_title
 
-    if len(words) >= 3:
-        return " ".join(words[:3])
+def collect_products():
 
-    return title
+    for category, url in categories.items():
 
+        try:
 
-# ---------------------------
-# 8️⃣ Amazon 수집
-# ---------------------------
+            res = requests.get(url, headers=headers, timeout=20)
 
-headers = {
-    "User-Agent": "Mozilla/5.0",
-    "Accept-Language": "ja-JP"
-}
+            soup = BeautifulSoup(res.text, "html.parser")
 
-all_products = []
+            items = soup.select(".zg-grid-general-faceout")
 
-for category, url in categories.items():
+            for item in items[:50]:
 
-    try:
+                title = item.select_one("._cDEzb_p13n-sc-css-line-clamp-3_g3dy1")
+                price = item.select_one(".p13n-sc-price")
+                link = item.select_one("a")
 
-        res = requests.get(url, headers=headers, timeout=20)
-
-        soup = BeautifulSoup(res.text, "html.parser")
-
-        items = soup.select(".zg-grid-general-faceout")
-
-        for item in items:
-
-            rank_tag = item.select_one(".zg-bdg-text")
-
-            if not rank_tag:
-                continue
-
-            rank = int(rank_tag.text.replace("#", ""))
-
-            if rank <= 100:
-                continue
-
-            title_tag = item.select_one("._cDEzb_p13n-sc-css-line-clamp-3_g3dy1")
-
-            price_tag = item.select_one(".p13n-sc-price")
-
-            link_tag = item.select_one("a")
-
-            if not title_tag or not link_tag:
-                continue
-
-            title = title_tag.text.strip()
-
-            for banned in banned_keywords:
-                if banned.lower() in title.lower():
+                if not title or not link:
                     continue
 
-            price_text = price_tag.text if price_tag else ""
+                title = title.text.strip()
 
-            price = int(re.sub(r"[^\d]", "", price_text)) if price_text else 0
+                if any(b in title.lower() for b in ban_keywords):
+                    continue
 
-            if price < 800 or price > 20000:
-                continue
+                if price:
+                    price = price.text.strip().replace("￥","").replace(",","")
+                else:
+                    price = "0"
 
-            link = "https://www.amazon.co.jp" + link_tag.get("href")
+                link = "https://www.amazon.co.jp" + link.get("href")
 
-            previous_price = price_history.get(link)
+                review = item.select_one(".a-size-small")
+                rating = item.select_one(".a-icon-alt")
 
-            if previous_price is not None and previous_price == price:
-                continue
+                reviews = 0
+                rating_val = 0
 
-            price_history[link] = price
+                if review:
+                    try:
+                        reviews = int(review.text.replace(",",""))
+                    except:
+                        pass
 
-            title_ko = translate_ko(title)
+                if rating:
+                    try:
+                        rating_val = float(rating.text.split()[0])
+                    except:
+                        pass
 
-            search_keyword = make_smartstore_title(title_ko)
+                asin = link.split("/dp/")[1].split("/")[0]
 
-            naver_total = check_naver_products(search_keyword)
+                products.append({
+                    "date": today,
+                    "asin": asin,
+                    "title": title,
+                    "price": int(price),
+                    "reviews": reviews,
+                    "rating": rating_val,
+                    "link": link
+                })
 
-            if naver_total != 0:
-                continue
+        except Exception as e:
 
-            all_products.append({
-                "category": category,
-                "title": title_ko,
-                "price": price,
-                "link": link,
-                "keyword": search_keyword
-            })
+            print("error", e)
 
-    except Exception as e:
+collect_products()
 
-        print("error:", e)
+history = {}
 
-# ---------------------------
-# 9️⃣ 가격 저장
-# ---------------------------
+if os.path.exists(history_file):
 
-with open(PRICE_FILE, "w") as f:
-    json.dump(price_history, f)
+    with open(history_file, "r", encoding="utf-8") as f:
 
-# ---------------------------
-# 🔟 이메일 생성
-# ---------------------------
+        reader = csv.DictReader(f)
 
-today = datetime.now().strftime("%Y-%m-%d")
+        for row in reader:
 
-body = "<h2>이번 주 추천 상품</h2><ul>"
+            history[row["asin"]] = row
 
-for p in all_products:
+recommend = []
 
-    body += f'''
-<li>
-[{p["category"]}]  
-<a href="{p["link"]}">{p["title"]}</a><br>
-가격: {p["price"]}円<br>
-스마트스토어 상품명 추천: {p["keyword"]}
-</li><br>
-'''
+for p in products:
 
-body += "</ul>"
+    asin = p["asin"]
 
-subject = f"Amazon Japan 자동소싱 추천 - {today}"
+    review_diff = 0
+    price_changed = False
 
-msg = MIMEText(body, "html", "utf-8")
+    if asin in history:
 
-msg["Subject"] = Header(subject, "utf-8")
+        old = history[asin]
+
+        old_review = int(old["reviews"])
+        old_price = int(old["price"])
+
+        review_diff = p["reviews"] - old_review
+
+        if p["price"] != old_price:
+            price_changed = True
+
+    if review_diff > 20 or price_changed:
+
+        title_ko = translate_to_korean(p["title"])
+
+        smart_title = make_smartstore_title(title_ko)
+
+        recommend.append({
+            "asin": asin,
+            "title_jp": p["title"],
+            "title_ko": title_ko,
+            "smartstore_title": smart_title,
+            "price": p["price"],
+            "review_increase": review_diff,
+            "link": p["link"]
+        })
+
+if recommend:
+
+    with open(result_file, "w", newline="", encoding="utf-8-sig") as f:
+
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "asin",
+                "title_jp",
+                "title_ko",
+                "smartstore_title",
+                "price",
+                "review_increase",
+                "link"
+            ]
+        )
+
+        writer.writeheader()
+
+        for r in recommend:
+
+            writer.writerow(r)
+
+with open(history_file, "w", newline="", encoding="utf-8-sig") as f:
+
+    writer = csv.DictWriter(
+        f,
+        fieldnames=[
+            "date",
+            "asin",
+            "title",
+            "price",
+            "reviews",
+            "rating"
+        ]
+    )
+
+    writer.writeheader()
+
+    for p in products:
+
+        writer.writerow({
+            "date": p["date"],
+            "asin": p["asin"],
+            "title": p["title"],
+            "price": p["price"],
+            "reviews": p["reviews"],
+            "rating": p["rating"]
+        })
+
+msg = MIMEMultipart()
+
+msg["Subject"] = f"Amazon Japan 자동소싱 추천 - {today}"
 msg["From"] = EMAIL_ADDRESS
-msg["To"] = TO_ADDRESS
+msg["To"] = EMAIL_ADDRESS
 
-# ---------------------------
-# 1️⃣1️⃣ 이메일 발송
-# ---------------------------
+body = "이번 주 Amazon Japan 급상승 상품을 확인하세요."
+
+msg.attach(MIMEText(body, "plain"))
+
+if os.path.exists(result_file):
+
+    part = MIMEBase("application", "octet-stream")
+
+    with open(result_file, "rb") as f:
+
+        part.set_payload(f.read())
+
+    encoders.encode_base64(part)
+
+    part.add_header(
+        "Content-Disposition",
+        f"attachment; filename={result_file}"
+    )
+
+    msg.attach(part)
 
 server = smtplib.SMTP("smtp.gmail.com", 587)
+
 server.starttls()
 
 server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
 
 server.sendmail(
     EMAIL_ADDRESS,
-    TO_ADDRESS,
+    EMAIL_ADDRESS,
     msg.as_string()
 )
 
 server.quit()
 
-print("추천 상품 수:", len(all_products))
-print("이메일 발송 완료")
+print("자동소싱 이메일 발송 완료")
