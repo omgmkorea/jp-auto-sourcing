@@ -1,19 +1,1 @@
-name: Run JP Sourcing
 
-on:
-  schedule:
-    - cron: '0 22 * * *'  # 한국시간 오전 7시
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.9'
-    - name: Run script
-      run: python main.py
