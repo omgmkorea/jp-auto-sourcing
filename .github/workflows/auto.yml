@@ -15,7 +15,8 @@ jobs:
           python-version: '3.11'
       - name: 라이브러리 설치
         run: |
-          pip install requests beautifulsoup4 deep-translator pandas gspread google-auth
+          python -m pip install --upgrade pip
+          python -m pip install requests beautifulsoup4 deep-translator pandas gspread google-auth
       - name: 코드 실행
         env:
           EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
