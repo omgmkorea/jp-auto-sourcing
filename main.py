@@ -6,6 +6,9 @@ from email.header import Header
 from datetime import datetime
 import os
 
+NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID")
+NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET")
+
 # ---------------------------
 # 1️⃣ 이메일 설정
 # ---------------------------
