@@ -1,29 +1,25 @@
 name: Amazon Auto Sourcing
-
 on:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 0 * * *'  # 매일 한국시간 오전 9시 (UTC 00:00)
   workflow_dispatch:
-
 jobs:
   run-script:
     runs-on: ubuntu-latest
-
     steps:
       - name: 코드 가져오기
         uses: actions/checkout@v3
-
       - name: 파이썬 설치
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-
       - name: 라이브러리 설치
         run: |
           pip install -r requirements.txt
-
       - name: 코드 실행
         env:
           EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
         run: python main.py
