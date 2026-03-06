@@ -9,16 +9,16 @@ jobs:
   run-script:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: 코드 가져오기
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: 파이썬 설정
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      # 설치와 실행을 하나의 'run' 블록에서 처리하여 환경 분리를 방지합니다.
-      - name: Install and Run
+      # 🔥 핵심: 설치와 실행을 한 번에 실행하여 환경 분리를 방지합니다.
+      - name: 라이브러리 설치 및 실행
         env:
           EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
