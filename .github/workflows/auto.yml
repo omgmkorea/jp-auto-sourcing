@@ -1,6 +1,8 @@
 name: Amazon Auto Sourcing
 
 on:
+  schedule:
+    - cron: '0 0 * * *'          # 매일 00:00 UTC (KST 09:00)
   push:
     branches: ["main"]
   workflow_dispatch:
@@ -21,7 +23,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4 deep-translator pandas gspread google-auth
-          pip list
 
       - name: 스크립트 실행
         env:
