@@ -8,7 +8,30 @@ import os
 
 NAVER_CLIENT_ID = os.environ.get("NAVER_CLIENT_ID")
 NAVER_CLIENT_SECRET = os.environ.get("NAVER_CLIENT_SECRET")
+def check_naver_products(keyword):
 
+    url = "https://openapi.naver.com/v1/search/shop.json"
+
+    headers = {
+        "X-Naver-Client-Id": NAVER_CLIENT_ID,
+        "X-Naver-Client-Secret": NAVER_CLIENT_SECRET
+    }
+
+    params = {
+        "query": keyword,
+        "display": 10
+    }
+
+    try:
+        res = requests.get(url, headers=headers, params=params)
+        data = res.json()
+
+        total = data.get("total", 0)
+
+        return total
+
+    except:
+        return 0
 # ---------------------------
 # 1️⃣ 이메일 설정
 # ---------------------------
