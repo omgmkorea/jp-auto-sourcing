@@ -2,7 +2,7 @@ name: Amazon Auto Sourcing
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
 
 jobs:
@@ -17,15 +17,17 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: 라이브러리 설치 및 스크립트 실행
+      - name: 라이브러리 설치
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4 deep-translator pandas gspread google-auth
+          pip list  # 확인용
+
+      - name: 스크립트 실행
         env:
           EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
           NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
-        run: |
-          python -m pip install --upgrade pip
-          # 필요한 모든 라이브러리를 여기서 직접 설치
-          pip install gspread oauth2client requests beautifulsoup4 deep-translator pandas google-auth
-          # 설치 직후 같은 환경에서 바로 실행
-          python main.py
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        run: python main.py
