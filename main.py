@@ -35,7 +35,7 @@ log = logging.getLogger(__name__)
 # TEST_MODE = True  → 가짜 7일치 데이터 자동 생성, 즉시 이메일 확인 가능
 # TEST_MODE = False → 실제 누적 데이터 기반 운영 모드
 # ---------------------------
-TEST_MODE = True
+TEST_MODE = False
 
 # ---------------------------
 # 이메일 설정
